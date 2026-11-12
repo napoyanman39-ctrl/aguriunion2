@@ -1,0 +1,1656 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アグリユニオン管理システム｜収穫量・在庫一元管理＆共同受注</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Noto Sans JP & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans JP"', '"Inter"', 'sans-serif'],
+                    },
+                    colors: {
+                        forest: {
+                            50: '#f2f7f4',
+                            100: '#dfece3',
+                            200: '#c0d9c9',
+                            300: '#95bea6',
+                            400: '#679c7e',
+                            500: '#467f60',
+                            600: '#34644b',
+                            700: '#2a503d',
+                            800: '#234032',
+                            900: '#1d352a',
+                        },
+                        earth: {
+                            50: '#faf9f6',
+                            100: '#f2efe9',
+                            200: '#e5dfd3',
+                            300: '#d3c8b4',
+                            400: '#bcab90',
+                            500: '#a69172',
+                            600: '#927b5e',
+                            700: '#79644d',
+                            800: '#645342',
+                            900: '#534538',
+                        },
+                        harvest: {
+                            400: '#f6ad55',
+                            500: '#ed8936',
+                            600: '#dd6b20',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* カスタムスクロールバーとアクセシビリティ向上 */
+        body {
+            background-color: #faf9f6;
+            color: #1f2937;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .nav-active {
+            background-color: #2a503d;
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        /* トーストアニメーション */
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans text-base md:text-lg">
+
+    <!-- トースト通知コンテナ (alert()の代替) -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-3 max-w-sm w-full px-4 pointer-events-none"></div>
+
+    <!-- =====================================================================
+         1. ログイン・新規登録画面 (未ログイン時に表示)
+         ===================================================================== -->
+    <div id="auth-view" class="min-h-screen flex flex-col justify-center items-center p-4 bg-gradient-to-br from-forest-50 via-earth-50 to-forest-100">
+        <div class="w-full max-w-2xl bg-white rounded-3xl shadow-xl border border-forest-100 overflow-hidden">
+            <!-- ヘッダーロゴ -->
+            <div class="bg-forest-700 text-white p-6 md:p-8 text-center">
+                <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-forest-600 mb-3 shadow-inner">
+                    <svg class="w-8 h-8 text-forest-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h1 class="text-2xl md:text-3xl font-bold tracking-tight">アグリユニオン管理システム</h1>
+                <p class="text-forest-100 text-sm md:text-base mt-1">農業連合 収穫量・在庫一元管理 ＆ 共同受注プラットフォーム</p>
+            </div>
+
+            <!-- タブ切り替え（ログイン / 新規登録） -->
+            <div class="flex border-b border-gray-200 bg-earth-50">
+                <button type="button" id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-4 text-center font-bold text-lg border-b-4 border-forest-600 text-forest-800 bg-white transition">
+                    ログイン
+                </button>
+                <button type="button" id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:text-forest-700 transition">
+                    新規登録
+                </button>
+            </div>
+
+            <!-- ログインフォームエリア -->
+            <div id="login-section" class="p-6 md:p-8 space-y-6">
+
+                <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5" novalidate>
+                    <div>
+                        <label for="login-id" class="block font-bold text-gray-700 mb-1.5">ログインID <span class="text-red-600">*</span></label>
+                        <input type="text" id="login-id" placeholder="例: admin01 または shop01" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl focus:outline-none focus:border-forest-600 transition">
+                        <p id="err-login-id" class="text-red-600 text-sm font-bold mt-1 hidden"></p>
+                    </div>
+                    <div>
+                        <label for="login-password" class="block font-bold text-gray-700 mb-1.5">パスワード <span class="text-red-600">*</span></label>
+                        <input type="password" id="login-password" placeholder="パスワードを入力" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl focus:outline-none focus:border-forest-600 transition">
+                        <p id="err-login-password" class="text-red-600 text-sm font-bold mt-1 hidden"></p>
+                    </div>
+                    <div id="err-login-general" class="p-3 bg-red-50 border border-red-300 text-red-700 rounded-xl text-sm font-bold hidden"></div>
+                    <button type="submit" class="w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold text-xl rounded-xl shadow-md transition">
+                        ログインする
+                    </button>
+                </form>
+            </div>
+
+            <!-- 新規登録フォームエリア -->
+            <div id="register-section" class="p-6 md:p-8 hidden space-y-6">
+                <!-- 登録完了メッセージバナー -->
+                <div id="register-success-banner" class="hidden p-5 bg-green-50 border-2 border-green-500 rounded-2xl text-green-900 space-y-3">
+                    <div class="flex items-center gap-2 font-bold text-xl text-green-800">
+                        <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span id="register-success-text">登録が完了しました</span>
+                    </div>
+                    <p class="text-sm">作成したログインIDとパスワードですぐにログインできます。</p>
+                    <button type="button" onclick="switchAuthTab('login')" class="px-5 py-2.5 bg-green-700 hover:bg-green-800 text-white font-bold rounded-xl text-base shadow">
+                        ログイン画面へ移動する
+                    </button>
+                </div>
+
+                <!-- 登録区分選択 -->
+                <div>
+                    <label class="block font-bold text-gray-800 mb-2">登録区分を選択してください <span class="text-red-600">*</span></label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="reg-role" value="admin" checked onchange="toggleRegisterRole('admin')" class="peer sr-only">
+                            <div class="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-forest-600 peer-checked:bg-forest-50 transition text-center font-bold">
+                                👨‍🌾 管理者として登録
+                                <span class="block text-xs font-normal text-gray-500 mt-1">農家管理・在庫統合・出荷割当</span>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="reg-role" value="buyer" onchange="toggleRegisterRole('buyer')" class="peer sr-only">
+                            <div class="p-4 rounded-xl border-2 border-gray-200 peer-checked:border-earth-600 peer-checked:bg-earth-50 transition text-center font-bold">
+                                🏪 利用者として登録
+                                <span class="block text-xs font-normal text-gray-500 mt-1">飲食店・小売店などの仕入れ注文</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 3. 管理者登録フォーム -->
+                <form id="admin-register-form" onsubmit="handleRegister(event, 'admin')" class="space-y-4" novalidate>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">管理者名 <span class="text-red-600">*</span></label>
+                            <input type="text" name="name" placeholder="例: 佐藤 健一" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">所属名 <span class="text-red-600">*</span></label>
+                            <input type="text" name="org" placeholder="例: 宮城中央農業連合 事務局" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">電話番号 <span class="text-red-600">*</span></label>
+                            <input type="tel" name="phone" placeholder="例: 022-123-4567" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">メールアドレス <span class="text-red-600">*</span></label>
+                            <input type="email" name="email" placeholder="例: sato@agri-union.jp" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <hr class="border-gray-200 my-2">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">ログインID <span class="text-red-600">*</span></label>
+                        <input type="text" name="loginId" placeholder="半角英数字（例: admin_sato）" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                        <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">パスワード <span class="text-red-600">*</span></label>
+                            <input type="password" name="password" placeholder="4文字以上" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">パスワード確認 <span class="text-red-600">*</span></label>
+                            <input type="password" name="passwordConfirm" placeholder="同じパスワードを再入力" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold text-xl rounded-xl shadow-md transition mt-2">
+                        登録する
+                    </button>
+                </form>
+
+                <!-- 4. 利用者登録フォーム -->
+                <form id="buyer-register-form" onsubmit="handleRegister(event, 'buyer')" class="space-y-4 hidden" novalidate>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">店舗・事業者名 <span class="text-red-600">*</span></label>
+                            <input type="text" name="shopName" placeholder="例: ビストロ・グリーン仙台" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">担当者名 <span class="text-red-600">*</span></label>
+                            <input type="text" name="name" placeholder="例: 鈴木 優子" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">郵便番号 <span class="text-red-600">*</span></label>
+                            <input type="text" name="zip" placeholder="例: 980-0014" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block font-bold text-gray-700 mb-1">住所 <span class="text-red-600">*</span></label>
+                            <input type="text" name="address" placeholder="例: 宮城県仙台市青葉区本町1-2-3" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">電話番号 <span class="text-red-600">*</span></label>
+                            <input type="tel" name="phone" placeholder="例: 022-987-6543" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">メールアドレス <span class="text-red-600">*</span></label>
+                            <input type="email" name="email" placeholder="例: order@bistro-green.jp" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <hr class="border-gray-200 my-2">
+                    <div>
+                        <label class="block font-bold text-gray-700 mb-1">ログインID <span class="text-red-600">*</span></label>
+                        <input type="text" name="loginId" placeholder="半角英数字（例: shop_green）" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                        <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">パスワード <span class="text-red-600">*</span></label>
+                            <input type="password" name="password" placeholder="4文字以上" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-gray-700 mb-1">パスワード確認 <span class="text-red-600">*</span></label>
+                            <input type="password" name="passwordConfirm" placeholder="同じパスワードを再入力" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            <p class="err-msg text-red-600 text-sm font-bold mt-1 hidden"></p>
+                        </div>
+                    </div>
+                    <button type="submit" class="w-full py-4 bg-earth-700 hover:bg-earth-800 text-white font-bold text-xl rounded-xl shadow-md transition mt-2">
+                        登録する
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         メインアプリケーションシェル (ログイン後に表示)
+         ===================================================================== -->
+    <div id="app-shell" class="hidden flex-col min-h-screen">
+        <!-- トップナビゲーションバー -->
+        <header class="bg-forest-800 text-white shadow-lg sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-forest-600 flex items-center justify-center font-bold text-xl shadow">🌱</div>
+                    <div>
+                        <span class="font-bold text-lg md:text-xl tracking-tight block leading-none">アグリユニオン管理</span>
+                        <span id="header-role-badge" class="text-xs text-forest-200 mt-1 inline-block">管理者モード</span>
+                    </div>
+                </div>
+
+                <!-- ユーザー情報 & ログアウト -->
+                <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                        <p id="header-user-name" class="font-bold text-sm text-white">佐藤 健一</p>
+                        <p id="header-user-org" class="text-xs text-forest-200">宮城中央農業連合</p>
+                    </div>
+                    <button type="button" onclick="logout()" class="px-4 py-2.5 bg-forest-900 hover:bg-red-700 text-white text-sm font-bold rounded-xl border border-forest-600 transition">
+                        ログアウト
+                    </button>
+                </div>
+            </div>
+
+            <!-- 画面切り替えメニューバー (スマホでも押しやすい大きめボタン) -->
+            <nav class="bg-forest-700 border-t border-forest-600 overflow-x-auto">
+                <div id="nav-menu-container" class="max-w-7xl mx-auto px-3 py-2 flex items-center gap-2 min-w-max">
+                    <!-- JSでロールに応じてメニューボタンを描画 -->
+                </div>
+            </nav>
+        </header>
+
+        <!-- メインコンテンツ領域 -->
+        <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 md:py-8">
+
+            <!-- =================================================================
+                 画面2: 気候変動・需要予測ダッシュボード (管理者・農家向け)
+                 ================================================================= -->
+            <section id="view-dashboard" class="app-view space-y-8">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-earth-200 pb-4">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold text-forest-900">📊 気候変動・需要予測ダッシュボード</h2>
+                        <p class="text-gray-600 text-base mt-1">連合全体の統合在庫（kg換算統一）と気象予報・市場価格トレンドを確認できます。</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="navigateTo('inventory')" class="px-5 py-3 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-xl shadow flex items-center gap-2">
+                            <span>＋ 在庫を登録する</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 連合全体の登録在庫サマリー（品目別合計在庫・単位統一表示） -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-xl font-bold text-forest-800 flex items-center gap-2">
+                            <span class="w-2 h-6 bg-forest-600 rounded-full inline-block"></span>
+                            連合全体の登録在庫サマリー（自動kg換算・統一表示）
+                        </h3>
+                        <span class="text-sm bg-forest-100 text-forest-800 font-bold px-3 py-1 rounded-full">リアルタイム連動中</span>
+                    </div>
+                    <div id="dashboard-inventory-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- JSで動的生成 -->
+                    </div>
+                </div>
+
+                <!-- 気候データ & 市場価格トレンド・需要予測アラート -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- 気候データ推移カード -->
+                    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-earth-200 p-6 space-y-5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="text-xl font-bold text-forest-800">🌤️ 地域気象データ・週間予報推移（仙台・宮城エリア）</h3>
+                            <span class="text-xs text-gray-500">気象庁オープンデータ連携イメージ</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                            <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                                <p class="text-sm font-bold text-gray-600">今日 (11/12)</p>
+                                <p class="text-3xl my-1">☀️</p>
+                                <p class="font-bold text-lg text-gray-900">16℃ / 6℃</p>
+                                <p class="text-xs text-blue-700 font-bold mt-1">降水 10%</p>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-gray-50 border border-gray-200 text-center">
+                                <p class="text-sm font-bold text-gray-600">明日 (11/13)</p>
+                                <p class="text-3xl my-1">⛅</p>
+                                <p class="font-bold text-lg text-gray-900">15℃ / 7℃</p>
+                                <p class="text-xs text-gray-600 font-bold mt-1">降水 20%</p>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-center">
+                                <p class="text-sm font-bold text-gray-600">土曜 (11/14)</p>
+                                <p class="text-3xl my-1">☔</p>
+                                <p class="font-bold text-lg text-gray-900">12℃ / 8℃</p>
+                                <p class="text-xs text-indigo-700 font-bold mt-1">降水 80% (25mm)</p>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-100 text-center">
+                                <p class="text-sm font-bold text-gray-600">日曜 (11/15)</p>
+                                <p class="text-3xl my-1">☀️</p>
+                                <p class="font-bold text-lg text-gray-900">14℃ / 4℃</p>
+                                <p class="text-xs text-blue-700 font-bold mt-1">降水 10%</p>
+                            </div>
+                            <div class="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-center col-span-2 sm:col-span-1">
+                                <p class="text-sm font-bold text-amber-800">来週前半</p>
+                                <p class="text-3xl my-1">❄️</p>
+                                <p class="font-bold text-lg text-amber-900">9℃ / 1℃</p>
+                                <p class="text-xs text-amber-800 font-bold mt-1">低温注意報予測</p>
+                            </div>
+                        </div>
+
+                        <!-- 簡易気温・降水量バー可視化 -->
+                        <div class="bg-earth-50 rounded-xl p-4 border border-earth-200">
+                            <p class="text-sm font-bold text-gray-700 mb-3">過去7日間の平均気温・降水量バランス（平年比 +1.4℃）</p>
+                            <div class="space-y-2.5 text-sm">
+                                <div>
+                                    <div class="flex justify-between font-bold mb-1">
+                                        <span>日照時間（平年比 112%）</span>
+                                        <span class="text-forest-700">生育良好・収穫前倒し傾向</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div class="bg-harvest-500 h-3 rounded-full" style="width: 82%"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between font-bold mb-1">
+                                        <span>土壌水分量指数</span>
+                                        <span class="text-blue-700">適正範囲内（土曜降雨で上昇見込み）</span>
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded-full h-3">
+                                        <div class="bg-blue-500 h-3 rounded-full" style="width: 65%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 市場価格トレンド・需要予測アラート -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-earth-200 p-6 flex flex-col justify-between space-y-5">
+                        <div>
+                            <h3 class="text-xl font-bold text-forest-800 mb-4">📈 市場価格トレンド ＆ 需要予測</h3>
+                            <div class="space-y-3">
+                                <div class="p-3.5 rounded-xl bg-amber-50 border-l-4 border-amber-500">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-bold text-amber-900">⚠️ 来週の冷え込み需要予測</span>
+                                        <span class="text-xs font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded">鍋物需要↑</span>
+                                    </div>
+                                    <p class="text-sm text-amber-800 mt-1">来週の最低気温低下に伴い、<strong>白菜・長ねぎ・大根</strong>の飲食店からの発注が約30%増加する見込みです。</p>
+                                </div>
+
+                                <div class="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+                                    <div class="p-3 flex items-center justify-between bg-white">
+                                        <div>
+                                            <p class="font-bold text-gray-800">トマト（桃太郎）</p>
+                                            <p class="text-xs text-gray-500">市場平均卸値</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-lg text-gray-900">¥420 <span class="text-xs font-normal">/kg</span></p>
+                                            <p class="text-xs font-bold text-green-600">▲ 前週比 +8%</p>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 flex items-center justify-between bg-white">
+                                        <div>
+                                            <p class="font-bold text-gray-800">キャベツ</p>
+                                            <p class="text-xs text-gray-500">市場平均卸値</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-lg text-gray-900">¥180 <span class="text-xs font-normal">/kg</span></p>
+                                            <p class="text-xs font-bold text-gray-500">→ 横ばい</p>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 flex items-center justify-between bg-white">
+                                        <div>
+                                            <p class="font-bold text-gray-800">白菜</p>
+                                            <p class="text-xs text-gray-500">市場平均卸値</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-lg text-gray-900">¥150 <span class="text-xs font-normal">/kg</span></p>
+                                            <p class="text-xs font-bold text-red-600">▲ 来週高騰予測 +15%</p>
+                                        </div>
+                                    </div>
+                                    <div class="p-3 flex items-center justify-between bg-white">
+                                        <div>
+                                            <p class="font-bold text-gray-800">じゃがいも（男爵）</p>
+                                            <p class="text-xs text-gray-500">市場平均卸値</p>
+                                        </div>
+                                        <div class="text-right">
+                                            <p class="font-bold text-lg text-gray-900">¥240 <span class="text-xs font-normal">/kg</span></p>
+                                            <p class="text-xs font-bold text-green-600">▲ 前週比 +4%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-forest-50 p-3.5 rounded-xl border border-forest-200 text-sm text-forest-900">
+                            <strong>💡 販売判断のヒント：</strong> 土曜の雨天前に葉物野菜（白菜・キャベツ）を収穫・在庫登録しておくと、週明けの共同受注に優先割り当てできます。
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =================================================================
+                 画面3: 在庫の統合入力画面 (農家・管理者向け)
+                 ================================================================= -->
+            <section id="view-inventory" class="app-view hidden space-y-8">
+                <div class="border-b border-earth-200 pb-4">
+                    <h2 class="text-2xl md:text-3xl font-bold text-forest-900">📦 在庫の統合入力・一覧管理</h2>
+                    <p class="text-gray-600 text-base mt-1">農家ごとの出荷可能在庫を登録します。「袋」や「個」で入力しても自動でkgに換算・統一されます。</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- 左側：統合入力フォーム -->
+                    <div class="lg:col-span-5 bg-white rounded-2xl shadow-md border-2 border-forest-200 p-6 space-y-5 h-fit">
+                        <h3 class="text-xl font-bold text-forest-800 border-b border-gray-100 pb-3">新規在庫の登録（6ステップ入力）</h3>
+                        
+                        <form id="inventory-form" onsubmit="handleAddInventory(event)" class="space-y-5" novalidate>
+                            <!-- 手順2：農家を選ぶ -->
+                            <div>
+                                <label for="inv-farmer" class="block font-bold text-gray-800 mb-1.5">
+                                    <span class="bg-forest-700 text-white text-xs px-2 py-0.5 rounded mr-1">手順1</span>農家名を選択 <span class="text-red-600">*</span>
+                                </label>
+                                <select id="inv-farmer" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl bg-white focus:border-forest-600 focus:outline-none">
+                                    <!-- JSで登録農家を自動反映 -->
+                                </select>
+                            </div>
+
+                            <!-- 手順3：農産物を選ぶ -->
+                            <div>
+                                <label for="inv-crop-select" class="block font-bold text-gray-800 mb-1.5">
+                                    <span class="bg-forest-700 text-white text-xs px-2 py-0.5 rounded mr-1">手順2</span>農産物（品目）を選択 <span class="text-red-600">*</span>
+                                </label>
+                                <select id="inv-crop-select" onchange="toggleCustomCropInput()" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl bg-white focus:border-forest-600 focus:outline-none">
+                                    <option value="トマト">トマト（桃太郎）</option>
+                                    <option value="キャベツ">キャベツ</option>
+                                    <option value="白菜">白菜</option>
+                                    <option value="じゃがいも">じゃがいも（男爵）</option>
+                                    <option value="長ねぎ">長ねぎ</option>
+                                    <option value="その他">＋ その他の品目を自由入力する</option>
+                                </select>
+                                <input type="text" id="inv-crop-custom" placeholder="品目名を入力（例: ほうれん草）" class="hidden mt-2 w-full px-4 py-3 text-lg border-2 border-forest-400 rounded-xl focus:outline-none">
+                            </div>
+
+                            <!-- 手順4：数量と単位を入力する -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label for="inv-qty" class="block font-bold text-gray-800 mb-1.5">
+                                        <span class="bg-forest-700 text-white text-xs px-2 py-0.5 rounded mr-1">手順3</span>数量 <span class="text-red-600">*</span>
+                                    </label>
+                                    <input type="number" id="inv-qty" min="0.1" step="0.1" value="10" oninput="updateUnitConversionPreview()" class="w-full px-4 py-3.5 text-xl font-bold border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                                </div>
+                                <div>
+                                    <label for="inv-unit" class="block font-bold text-gray-800 mb-1.5">
+                                        単位 <span class="text-red-600">*</span>
+                                    </label>
+                                    <select id="inv-unit" onchange="updateUnitConversionPreview()" class="w-full px-4 py-3.5 text-lg font-bold border-2 border-gray-300 rounded-xl bg-white focus:border-forest-600 focus:outline-none">
+                                        <option value="kg">kg（キログラム）</option>
+                                        <option value="袋">袋（1袋 = 5kg換算）</option>
+                                        <option value="箱">箱（1箱 = 10kg換算）</option>
+                                        <option value="個">個（1個 = 0.3kg換算）</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 自動単位変換プレビューボックス -->
+                            <div class="p-4 rounded-xl bg-forest-50 border-2 border-forest-300">
+                                <p class="text-xs font-bold text-forest-700 uppercase tracking-wider">🔄 自動単位変換プレビュー（連合統一基準）</p>
+                                <div class="flex items-baseline justify-between mt-1">
+                                    <span id="conversion-formula" class="text-sm text-gray-600">10 kg × 1.0</span>
+                                    <span class="text-2xl font-bold text-forest-900">＝ <span id="conversion-result">10.0</span> kg</span>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">※実際に出荷できる数量を入力してください。</p>
+                            </div>
+
+                            <p id="err-inventory" class="text-red-600 text-sm font-bold hidden"></p>
+
+                            <button type="submit" class="w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold text-xl rounded-xl shadow-lg transition flex items-center justify-center gap-2">
+                                <span>✓ 在庫を登録・保存する</span>
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 右側：現在の統合在庫一覧テーブル -->
+                    <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-earth-200 p-6 space-y-4">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <h3 class="text-xl font-bold text-forest-800">登録済み在庫一覧（農家別・リアルタイム反映）</h3>
+                            <span id="inventory-count-badge" class="px-3 py-1 bg-earth-100 text-earth-800 font-bold text-sm rounded-full">0件</span>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-forest-50 text-forest-900 border-b-2 border-forest-200 text-sm md:text-base">
+                                        <th class="p-3.5 font-bold">農家名</th>
+                                        <th class="p-3.5 font-bold">品目</th>
+                                        <th class="p-3.5 font-bold">登録入力値</th>
+                                        <th class="p-3.5 font-bold">統一在庫 (kg)</th>
+                                        <th class="p-3.5 font-bold text-center">操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-table-body" class="divide-y divide-gray-200 text-base">
+                                    <!-- JSで動的描画 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =================================================================
+                 画面4: 農家情報の登録・管理画面 (管理者向け)
+                 ================================================================= -->
+            <section id="view-farmers" class="app-view hidden space-y-8">
+                <div class="border-b border-earth-200 pb-4">
+                    <h2 class="text-2xl md:text-3xl font-bold text-forest-900">🚜 農家情報の登録・管理（管理者向け）</h2>
+                    <p class="text-gray-600 text-base mt-1">連合に所属する農家・農業法人の連絡先や所在地を登録・編集します。</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- 農家登録・編集フォーム -->
+                    <div class="lg:col-span-5 bg-white rounded-2xl shadow-md border border-earth-200 p-6 space-y-4 h-fit">
+                        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                            <h3 id="farmer-form-title" class="text-xl font-bold text-forest-800">新規農家の登録</h3>
+                            <button type="button" id="btn-cancel-farmer-edit" onclick="resetFarmerForm()" class="hidden text-sm text-gray-500 hover:text-gray-800 underline font-bold">
+                                編集をキャンセル
+                            </button>
+                        </div>
+
+                        <form id="farmer-form" onsubmit="handleSaveFarmer(event)" class="space-y-4" novalidate>
+                            <input type="hidden" id="farmer-edit-id" value="">
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">農家名（または農業法人名） <span class="text-red-600">*</span></label>
+                                <input type="text" id="farmer-name" placeholder="例: 青葉サンシャイン農園" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">担当者名 <span class="text-red-600">*</span></label>
+                                <input type="text" id="farmer-contact" placeholder="例: 高橋 誠" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">電話番号 <span class="text-red-600">*</span></label>
+                                <input type="tel" id="farmer-phone" placeholder="例: 090-1111-2222" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">住所 <span class="text-red-600">*</span></label>
+                                <input type="text" id="farmer-address" placeholder="例: 宮城県名取市愛島1-5" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">メールアドレス <span class="text-red-600">*</span></label>
+                                <input type="email" id="farmer-email" placeholder="例: takahashi@aoba-farm.jp" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-forest-600 focus:outline-none">
+                            </div>
+
+                            <p id="err-farmer" class="text-red-600 text-sm font-bold hidden"></p>
+
+                            <button type="submit" id="btn-submit-farmer" class="w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold text-xl rounded-xl shadow transition">
+                                農家を登録する
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 登録済み農家一覧テーブル -->
+                    <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-earth-200 p-6 space-y-4">
+                        <h3 class="text-xl font-bold text-forest-800">登録済み農家一覧（選択して修正・更新）</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-forest-50 text-forest-900 border-b-2 border-forest-200 text-sm md:text-base">
+                                        <th class="p-3.5 font-bold">農家名</th>
+                                        <th class="p-3.5 font-bold">担当者名</th>
+                                        <th class="p-3.5 font-bold">電話番号</th>
+                                        <th class="p-3.5 font-bold hidden md:table-cell">所在地</th>
+                                        <th class="p-3.5 font-bold text-center">編集</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="farmers-table-body" class="divide-y divide-gray-200 text-base">
+                                    <!-- JSで動的描画 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =================================================================
+                 画面5: 共同受注・出荷管理画面 (管理者向け)
+                 ================================================================= -->
+            <section id="view-orders-admin" class="app-view hidden space-y-8">
+                <div class="border-b border-earth-200 pb-4">
+                    <h2 class="text-2xl md:text-3xl font-bold text-forest-900">🚚 共同受注・出荷管理（管理者向け）</h2>
+                    <p class="text-gray-600 text-base mt-1">飲食店・ECサイトからの注文を確認し、各農家の登録在庫から出荷量を割り当ててステータスを更新します。</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- 注文一覧 -->
+                    <div class="lg:col-span-7 space-y-4">
+                        <h3 class="text-xl font-bold text-forest-800">受注一覧（クリックして出荷割り当て）</h3>
+                        <div id="admin-orders-list" class="space-y-4">
+                            <!-- JSで注文カードを動的描画 -->
+                        </div>
+                    </div>
+
+                    <!-- 出荷量割り当て・出荷指示パネル -->
+                    <div class="lg:col-span-5">
+                        <div id="allocation-panel" class="bg-white rounded-2xl shadow-md border-2 border-forest-300 p-6 space-y-5 sticky top-28">
+                            <h3 class="text-xl font-bold text-forest-900 border-b border-gray-100 pb-3">📋 出荷割り当て ＆ 出荷指示書</h3>
+                            <div id="allocation-content" class="text-gray-500 text-center py-8">
+                                左の注文一覧から「割り当て・出荷管理」ボタンを押して注文を選択してください。
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- =================================================================
+                 画面6: 利用者（飲食店・小売店）向け注文・注文状況確認画面
+                 ================================================================= -->
+            <section id="view-buyer-portal" class="app-view hidden space-y-8">
+                <div class="border-b border-earth-200 pb-4">
+                    <h2 class="text-2xl md:text-3xl font-bold text-earth-900">🛒 農産物の共同注文 ＆ 配送状況確認</h2>
+                    <p class="text-gray-600 text-base mt-1">農業連合のリアルタイム統合在庫から直接仕入れ注文が行えます。</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- 新規注文フォーム -->
+                    <div class="lg:col-span-5 bg-white rounded-2xl shadow-md border-2 border-earth-300 p-6 space-y-5 h-fit">
+                        <h3 class="text-xl font-bold text-earth-800 border-b border-gray-100 pb-3">新規注文を作成する</h3>
+                        <form id="buyer-order-form" onsubmit="handlePlaceOrder(event)" class="space-y-4" novalidate>
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">注文する品目（連合の現在庫） <span class="text-red-600">*</span></label>
+                                <select id="order-crop-select" onchange="updateOrderAvailableInfo()" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl bg-white focus:border-earth-600 focus:outline-none">
+                                    <!-- JSで在庫のある品目を生成 -->
+                                </select>
+                                <p id="order-stock-hint" class="text-sm font-bold text-forest-700 mt-1.5"></p>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">注文数量（kg単位） <span class="text-red-600">*</span></label>
+                                <input type="number" id="order-qty" min="1" step="1" value="10" class="w-full px-4 py-3.5 text-xl font-bold border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">希望納期 <span class="text-red-600">*</span></label>
+                                <input type="date" id="order-delivery-date" class="w-full px-4 py-3.5 text-lg border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            </div>
+
+                            <div>
+                                <label class="block font-bold text-gray-700 mb-1">備考・配送先メモ（任意）</label>
+                                <input type="text" id="order-note" placeholder="例: 午前中着希望、裏口納品" class="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-earth-600 focus:outline-none">
+                            </div>
+
+                            <p id="err-buyer-order" class="text-red-600 text-sm font-bold hidden"></p>
+
+                            <button type="submit" class="w-full py-4 bg-earth-700 hover:bg-earth-800 text-white font-bold text-xl rounded-xl shadow-lg transition">
+                                この内容で注文を確定する
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 利用者の注文履歴・出荷状況一覧 -->
+                    <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-earth-200 p-6 space-y-4">
+                        <h3 class="text-xl font-bold text-earth-800">ご注文履歴 ＆ 出荷ステータス</h3>
+                        <div id="buyer-orders-list" class="space-y-4">
+                            <!-- JSで描画 -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- フッター -->
+        <footer class="bg-earth-100 border-t border-earth-200 py-6 px-4 text-center text-sm text-gray-600 mt-12">
+            <p class="font-bold text-forest-800">アグリユニオン管理システム（操作説明書 Ver.1.0 準拠）</p>
+            <p class="mt-1">困った時は：在庫数と実物が合わない場合は現物を数え直し、管理者へ連絡のうえ在庫情報を修正してください。</p>
+        </footer>
+    </div>
+
+    <!-- =====================================================================
+         JavaScript: 状態管理・画面遷移・バリデーション・データ連携
+         ===================================================================== -->
+    <script>
+        // ---------------------------------------------------------------------
+        // 1. 初期データストア（ブラウザ上で全画面リアルタイム連動）
+        // ---------------------------------------------------------------------
+        const UNIT_RATES = {
+            'kg': 1.0,
+            '袋': 5.0,
+            '箱': 10.0,
+            '個': 0.3
+        };
+
+        const CROP_PRICES = {
+            'トマト': 420,
+            'キャベツ': 180,
+            '白菜': 150,
+            'じゃがいも': 240,
+            '長ねぎ': 310
+        };
+
+        const state = {
+            currentUser: null, // { id, loginId, role: 'admin'|'buyer', name, org }
+            activeView: 'dashboard',
+            selectedOrderId: null,
+            
+            // 登録ユーザー（ログインID重複チェック・ログイン認証用）
+            users: [
+                {
+                    id: 'u1',
+                    role: 'admin',
+                    name: '佐藤 健一',
+                    org: '宮城中央農業連合 事務局',
+                    phone: '022-123-4567',
+                    email: 'admin@agri-union.jp',
+                    loginId: 'admin01',
+                    password: 'password'
+                },
+                {
+                    id: 'u2',
+                    role: 'buyer',
+                    shopName: 'ビストロ・グリーン仙台',
+                    name: '鈴木 優子',
+                    zip: '980-0014',
+                    address: '宮城県仙台市青葉区本町1-2-3',
+                    phone: '022-987-6543',
+                    email: 'shop@bistro-green.jp',
+                    loginId: 'shop01',
+                    password: 'password'
+                }
+            ],
+
+            // 農家マスタ
+            farmers: [
+                { id: 'f1', name: '青葉サンシャイン農園', contact: '高橋 誠', phone: '090-1111-2222', address: '宮城県名取市愛島1-5', email: 'takahashi@aoba-farm.jp' },
+                { id: 'f2', name: 'みちのく有機ファーム', contact: '伊藤 美咲', phone: '090-3333-4444', address: '宮城県岩沼市押分2-10', email: 'ito@michinoku-org.jp' },
+                { id: 'f3', name: '蔵王ふもと農業法人', contact: '渡辺 浩二', phone: '0224-55-6677', address: '宮城県蔵王町円田3-8', email: 'watanabe@zao-agri.jp' }
+            ],
+
+            // 在庫データ（統一kg保持）
+            inventories: [
+                { id: 'inv1', farmerId: 'f1', crop: 'トマト', rawQty: 8, unit: '箱', unifiedKg: 80.0, updatedAt: '11/12 09:30' },
+                { id: 'inv2', farmerId: 'f2', crop: 'トマト', rawQty: 45, unit: 'kg', unifiedKg: 45.0, updatedAt: '11/12 10:15' },
+                { id: 'inv3', farmerId: 'f1', crop: 'キャベツ', rawQty: 20, unit: '袋', unifiedKg: 100.0, updatedAt: '11/12 08:45' },
+                { id: 'inv4', farmerId: 'f3', crop: '白菜', rawQty: 15, unit: '箱', unifiedKg: 150.0, updatedAt: '11/12 11:00' },
+                { id: 'inv5', farmerId: 'f2', crop: 'じゃがいも', rawQty: 18, unit: '袋', unifiedKg: 90.0, updatedAt: '11/11 16:20' }
+            ],
+
+            // 共同受注データ
+            orders: [
+                {
+                    id: 'ORD-2026-001',
+                    buyerLoginId: 'shop01',
+                    shopName: 'ビストロ・グリーン仙台',
+                    crop: 'トマト',
+                    qtyKg: 60,
+                    deliveryDate: '2026-11-14',
+                    note: '午前中納品希望',
+                    status: '未対応', // '未対応' | '出荷準備中' | '出荷済み'
+                    allocations: [] // [{ farmerId, farmerName, allocatedKg }]
+                },
+                {
+                    id: 'ORD-2026-002',
+                    buyerLoginId: 'ec_tohoku',
+                    shopName: '東北産直マルシェ EC事業部',
+                    crop: '白菜',
+                    qtyKg: 80,
+                    deliveryDate: '2026-11-15',
+                    note: 'ダンボール梱包指定',
+                    status: '出荷準備中',
+                    allocations: [
+                        { farmerId: 'f3', farmerName: '蔵王ふもと農業法人', allocatedKg: 80 }
+                    ]
+                }
+            ]
+        };
+
+        // ---------------------------------------------------------------------
+        // 2. ユーティリティ & 通知トースト
+        // ---------------------------------------------------------------------
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-forest-800 border-forest-500' : 'bg-red-700 border-red-400';
+            toast.className = `toast-enter pointer-events-auto p-4 rounded-2xl text-white border-l-4 shadow-xl flex items-center justify-between gap-3 ${bgColor}`;
+            toast.innerHTML = `
+                <span class="font-bold text-sm md:text-base">${message}</span>
+                <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white font-bold">✕</button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 4000);
+        }
+
+        function isValidEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        // ---------------------------------------------------------------------
+        // 3. 認証画面（ログイン・新規登録・バリデーション）
+        // ---------------------------------------------------------------------
+        function switchAuthTab(tab) {
+            const loginTab = document.getElementById('tab-login');
+            const regTab = document.getElementById('tab-register');
+            const loginSec = document.getElementById('login-section');
+            const regSec = document.getElementById('register-section');
+
+            if (tab === 'login') {
+                loginTab.className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-forest-600 text-forest-800 bg-white transition';
+                regTab.className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:text-forest-700 transition';
+                loginSec.classList.remove('hidden');
+                regSec.classList.add('hidden');
+            } else {
+                regTab.className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-forest-600 text-forest-800 bg-white transition';
+                loginTab.className = 'flex-1 py-4 text-center font-bold text-lg border-b-4 border-transparent text-gray-500 hover:text-forest-700 transition';
+                regSec.classList.remove('hidden');
+                loginSec.classList.add('hidden');
+                document.getElementById('register-success-banner').classList.add('hidden');
+            }
+        }
+
+        function toggleRegisterRole(role) {
+            const adminForm = document.getElementById('admin-register-form');
+            const buyerForm = document.getElementById('buyer-register-form');
+            document.getElementById('register-success-banner').classList.add('hidden');
+
+            if (role === 'admin') {
+                adminForm.classList.remove('hidden');
+                buyerForm.classList.add('hidden');
+            } else {
+                buyerForm.classList.remove('hidden');
+                adminForm.classList.add('hidden');
+            }
+        }
+
+        function handleRegister(event, role) {
+            event.preventDefault();
+            const form = event.target;
+            let hasError = false;
+
+            // 全エラー表示リセット
+            form.querySelectorAll('.err-msg').forEach(el => {
+                el.textContent = '';
+                el.classList.add('hidden');
+            });
+
+            const setFieldError = (inputName, msg) => {
+                const input = form.querySelector(`[name="${inputName}"]`);
+                if (input) {
+                    const errEl = input.parentElement.querySelector('.err-msg');
+                    if (errEl) {
+                        errEl.textContent = msg;
+                        errEl.classList.remove('hidden');
+                    }
+                }
+                hasError = true;
+            };
+
+            const data = {};
+            new FormData(form).forEach((val, key) => data[key] = val.trim());
+
+            // 必須チェック
+            Object.keys(data).forEach(key => {
+                if (!data[key]) {
+                    setFieldError(key, 'この項目は必須入力です。');
+                }
+            });
+
+            // メールアドレス形式チェック
+            if (data.email && !isValidEmail(data.email)) {
+                setFieldError('email', 'メールアドレスの形式が正しくありません。');
+            }
+
+            // ログインID重複チェック
+            if (data.loginId && state.users.some(u => u.loginId === data.loginId)) {
+                setFieldError('loginId', 'このログインIDは既に使用されています。別のIDを入力してください。');
+            }
+
+            // パスワード一致チェック
+            if (data.password && data.passwordConfirm && data.password !== data.passwordConfirm) {
+                setFieldError('passwordConfirm', 'パスワードと確認用パスワードが一致しません。');
+            }
+
+            if (hasError) return;
+
+            // 新規ユーザー保存
+            const newUser = {
+                id: 'u_' + Date.now(),
+                role: role,
+                name: data.name,
+                org: role === 'admin' ? data.org : data.shopName,
+                shopName: data.shopName || '',
+                zip: data.zip || '',
+                address: data.address || '',
+                phone: data.phone,
+                email: data.email,
+                loginId: data.loginId,
+                password: data.password
+            };
+            state.users.push(newUser);
+
+            // 完了メッセージ表示（操作説明書準拠）
+            const banner = document.getElementById('register-success-banner');
+            const bannerText = document.getElementById('register-success-text');
+            bannerText.textContent = role === 'admin' ? '管理者登録が完了しました' : '利用者登録が完了しました';
+            banner.classList.remove('hidden');
+            
+            // ログイン画面のID欄にも自動セットして使いやすくする
+            document.getElementById('login-id').value = data.loginId;
+            document.getElementById('login-password').value = data.password;
+            form.reset();
+            showToast(bannerText.textContent);
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const idInput = document.getElementById('login-id').value.trim();
+            const pwInput = document.getElementById('login-password').value.trim();
+            const errId = document.getElementById('err-login-id');
+            const errPw = document.getElementById('err-login-password');
+            const errGen = document.getElementById('err-login-general');
+
+            [errId, errPw, errGen].forEach(el => el.classList.add('hidden'));
+
+            let valid = true;
+            if (!idInput) {
+                errId.textContent = 'ログインIDを入力してください。';
+                errId.classList.remove('hidden');
+                valid = false;
+            }
+            if (!pwInput) {
+                errPw.textContent = 'パスワードを入力してください。';
+                errPw.classList.remove('hidden');
+                valid = false;
+            }
+            if (!valid) return;
+
+            const user = state.users.find(u => u.loginId === idInput && u.password === pwInput);
+            if (!user) {
+                errGen.textContent = 'ログインIDまたはパスワードが正しくありません。';
+                errGen.classList.remove('hidden');
+                return;
+            }
+
+            enterApp(user);
+        }
+
+        function demoLogin(role) {
+            const user = state.users.find(u => u.role === role);
+            if (user) {
+                enterApp(user);
+            }
+        }
+
+        function enterApp(user) {
+            state.currentUser = user;
+            document.getElementById('auth-view').classList.add('hidden');
+            const appShell = document.getElementById('app-shell');
+            appShell.classList.remove('hidden');
+            appShell.classList.add('flex');
+
+            // ヘッダー情報更新
+            document.getElementById('header-user-name').textContent = user.name;
+            document.getElementById('header-user-org').textContent = user.org || user.shopName;
+            document.getElementById('header-role-badge').textContent =
+                user.role === 'admin' ? '👨‍🌾 管理者・農家統合モード' : '🏪 利用者（飲食店・小売店）モード';
+
+            renderNavMenu();
+
+            // 初期表示画面の設定
+            if (user.role === 'admin') {
+                navigateTo('dashboard');
+            } else {
+                navigateTo('buyer-portal');
+            }
+            showToast(`ようこそ、${user.name} さん`);
+        }
+
+        function logout() {
+            state.currentUser = null;
+            document.getElementById('app-shell').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('flex');
+            document.getElementById('auth-view').classList.remove('hidden');
+            showToast('ログアウトしました');
+        }
+
+        // ---------------------------------------------------------------------
+        // 4. ナビゲーション＆画面切り替え
+        // ---------------------------------------------------------------------
+        function renderNavMenu() {
+            const container = document.getElementById('nav-menu-container');
+            const role = state.currentUser.role;
+
+            const adminMenus = [
+                { id: 'dashboard', label: '📊 気候・需要ダッシュボード' },
+                { id: 'inventory', label: '📦 在庫の統合入力' },
+                { id: 'orders-admin', label: '🚚 共同受注・出荷管理' },
+                { id: 'farmers', label: '🚜 農家情報の登録・管理' },
+                { id: 'buyer-portal', label: '🛒 (プレビュー)利用者注文画面' }
+            ];
+
+            const buyerMenus = [
+                { id: 'buyer-portal', label: '🛒 新規注文・配送状況確認' },
+                { id: 'dashboard', label: '📊 連合在庫・市場価格を見る' }
+            ];
+
+            const menus = role === 'admin' ? adminMenus : buyerMenus;
+            container.innerHTML = menus.map(m => `
+                <button type="button" id="nav-btn-${m.id}" onclick="navigateTo('${m.id}')"
+                    class="px-4 py-2.5 rounded-xl text-sm md:text-base font-medium text-forest-100 hover:bg-forest-600 transition whitespace-nowrap">
+                    ${m.label}
+                </button>
+            `).join('');
+        }
+
+        function navigateTo(viewId) {
+            state.activeView = viewId;
+
+            // 全ビュー非表示
+            document.querySelectorAll('.app-view').forEach(sec => sec.classList.add('hidden'));
+            const target = document.getElementById(`view-${viewId}`);
+            if (target) target.classList.remove('hidden');
+
+            // ナビゲーションアクティブ状態更新
+            document.querySelectorAll('#nav-menu-container button').forEach(btn => {
+                btn.classList.remove('nav-active');
+                btn.classList.add('text-forest-100');
+            });
+            const activeBtn = document.getElementById(`nav-btn-${viewId}`);
+            if (activeBtn) {
+                activeBtn.classList.add('nav-active');
+                activeBtn.classList.remove('text-forest-100');
+            }
+
+            // 各画面の最新データ再描画
+            refreshAllViews();
+        }
+
+        function refreshAllViews() {
+            renderDashboard();
+            renderInventoryView();
+            renderFarmersView();
+            renderAdminOrdersView();
+            renderBuyerPortal();
+        }
+
+        // ---------------------------------------------------------------------
+        // 5. 画面2: ダッシュボード描画（品目別合計在庫・単位統一）
+        // ---------------------------------------------------------------------
+        function getAggregatedInventory() {
+            const map = {};
+            state.inventories.forEach(item => {
+                if (!map[item.crop]) {
+                    map[item.crop] = { crop: item.crop, totalKg: 0, farmerCount: new Set() };
+                }
+                map[item.crop].totalKg += item.unifiedKg;
+                map[item.crop].farmerCount.add(item.farmerId);
+            });
+            return Object.values(map);
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('dashboard-inventory-cards');
+            const aggregated = getAggregatedInventory();
+
+            if (aggregated.length === 0) {
+                container.innerHTML = `<div class="col-span-full p-6 bg-white rounded-2xl border text-center text-gray-500">現在登録されている在庫はありません。</div>`;
+                return;
+            }
+
+            const icons = { 'トマト': '🍅', 'キャベツ': '🥬', '白菜': '🥬', 'じゃがいも': '🥔', '長ねぎ': '🧅' };
+
+            container.innerHTML = aggregated.map(item => {
+                const icon = icons[item.crop] || '🌿';
+                const price = CROP_PRICES[item.crop] || 250;
+                const isLow = item.totalKg < 50;
+                return `
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border ${isLow ? 'border-amber-300' : 'border-forest-100'} flex flex-col justify-between">
+                        <div class="flex items-center justify-between">
+                            <span class="text-3xl">${icon}</span>
+                            <span class="text-xs font-bold px-2.5 py-1 rounded-full ${isLow ? 'bg-amber-100 text-amber-800' : 'bg-forest-100 text-forest-800'}">
+                                ${item.farmerCount.size}農家が登録中
+                            </span>
+                        </div>
+                        <div class="mt-3">
+                            <p class="text-lg font-bold text-gray-800">${item.crop}</p>
+                            <p class="text-3xl font-bold text-forest-800 mt-1">
+                                ${item.totalKg.toFixed(1)} <span class="text-base font-normal text-gray-600">kg</span>
+                            </p>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-gray-100 flex justify-between text-xs text-gray-500">
+                            <span>参考卸単価: ¥${price}/kg</span>
+                            <span>${isLow ? '⚠️ 残少' : '✓ 出荷可能'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ---------------------------------------------------------------------
+        // 6. 画面3: 在庫の統合入力・自動単位変換
+        // ---------------------------------------------------------------------
+        function toggleCustomCropInput() {
+            const select = document.getElementById('inv-crop-select');
+            const customInput = document.getElementById('inv-crop-custom');
+            if (select.value === 'その他') {
+                customInput.classList.remove('hidden');
+                customInput.focus();
+            } else {
+                customInput.classList.add('hidden');
+            }
+        }
+
+        function updateUnitConversionPreview() {
+            const qty = parseFloat(document.getElementById('inv-qty').value) || 0;
+            const unit = document.getElementById('inv-unit').value;
+            const rate = UNIT_RATES[unit] || 1.0;
+            const converted = qty * rate;
+
+            document.getElementById('conversion-formula').textContent = `${qty} ${unit} × ${rate}kg`;
+            document.getElementById('conversion-result').textContent = converted.toFixed(1);
+        }
+
+        function renderInventoryView() {
+            // 農家ドロップダウン更新
+            const farmerSelect = document.getElementById('inv-farmer');
+            const currentVal = farmerSelect.value;
+            farmerSelect.innerHTML = state.farmers.map(f =>
+                `<option value="${f.id}">${f.name}（担当: ${f.contact}）</option>`
+            ).join('');
+            if (currentVal && state.farmers.some(f => f.id === currentVal)) {
+                farmerSelect.value = currentVal;
+            }
+
+            // 在庫一覧テーブル更新
+            const tbody = document.getElementById('inventory-table-body');
+            document.getElementById('inventory-count-badge').textContent = `${state.inventories.length}件`;
+
+            tbody.innerHTML = state.inventories.map(inv => {
+                const farmer = state.farmers.find(f => f.id === inv.farmerId);
+                const farmerName = farmer ? farmer.name : '不明な農家';
+                return `
+                    <tr class="hover:bg-forest-50/50 transition">
+                        <td class="p-3.5 font-bold text-gray-800">${farmerName}</td>
+                        <td class="p-3.5 font-bold text-forest-800">${inv.crop}</td>
+                        <td class="p-3.5 text-gray-600">${inv.rawQty} ${inv.unit}</td>
+                        <td class="p-3.5 font-bold text-lg text-forest-900">${inv.unifiedKg.toFixed(1)} kg</td>
+                        <td class="p-3.5 text-center">
+                            <button type="button" onclick="deleteInventory('${inv.id}')" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-sm rounded-lg border border-red-200">
+                                削除
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            updateUnitConversionPreview();
+        }
+
+        function handleAddInventory(event) {
+            event.preventDefault();
+            const errEl = document.getElementById('err-inventory');
+            errEl.classList.add('hidden');
+
+            const farmerId = document.getElementById('inv-farmer').value;
+            const cropSelect = document.getElementById('inv-crop-select').value;
+            const customCrop = document.getElementById('inv-crop-custom').value.trim();
+            const crop = cropSelect === 'その他' ? customCrop : cropSelect;
+            const rawQty = parseFloat(document.getElementById('inv-qty').value);
+            const unit = document.getElementById('inv-unit').value;
+
+            if (!farmerId || !crop || isNaN(rawQty) || rawQty <= 0) {
+                errEl.textContent = '農家・品目・正しい数量（0より大きい数値）を入力してください。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const unifiedKg = rawQty * (UNIT_RATES[unit] || 1.0);
+            const now = new Date();
+            const timeStr = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+
+            state.inventories.unshift({
+                id: 'inv_' + Date.now(),
+                farmerId,
+                crop,
+                rawQty,
+                unit,
+                unifiedKg,
+                updatedAt: timeStr
+            });
+
+            document.getElementById('inv-crop-custom').value = '';
+            refreshAllViews();
+            showToast(`「${crop}」 ${unifiedKg.toFixed(1)}kg を在庫に登録しました`);
+        }
+
+        function deleteInventory(invId) {
+            state.inventories = state.inventories.filter(i => i.id !== invId);
+            refreshAllViews();
+            showToast('在庫データを削除しました');
+        }
+
+        // ---------------------------------------------------------------------
+        // 7. 画面4: 農家情報の登録・管理（追加・編集更新）
+        // ---------------------------------------------------------------------
+        function renderFarmersView() {
+            const tbody = document.getElementById('farmers-table-body');
+            tbody.innerHTML = state.farmers.map(f => `
+                <tr class="hover:bg-forest-50/50 transition">
+                    <td class="p-3.5 font-bold text-gray-900">${f.name}</td>
+                    <td class="p-3.5 text-gray-700">${f.contact}</td>
+                    <td class="p-3.5 text-gray-700">${f.phone}</td>
+                    <td class="p-3.5 text-gray-600 text-sm hidden md:table-cell">${f.address}</td>
+                    <td class="p-3.5 text-center">
+                        <button type="button" onclick="editFarmer('${f.id}')" class="px-3.5 py-2 bg-earth-100 hover:bg-earth-200 text-earth-900 font-bold text-sm rounded-xl border border-earth-300">
+                            選択・編集
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function editFarmer(farmerId) {
+            const farmer = state.farmers.find(f => f.id === farmerId);
+            if (!farmer) return;
+
+            document.getElementById('farmer-edit-id').value = farmer.id;
+            document.getElementById('farmer-name').value = farmer.name;
+            document.getElementById('farmer-contact').value = farmer.contact;
+            document.getElementById('farmer-phone').value = farmer.phone;
+            document.getElementById('farmer-address').value = farmer.address;
+            document.getElementById('farmer-email').value = farmer.email;
+
+            document.getElementById('farmer-form-title').textContent = '農家情報の修正・更新';
+            document.getElementById('btn-submit-farmer').textContent = '変更内容を更新する';
+            document.getElementById('btn-cancel-farmer-edit').classList.remove('hidden');
+            document.getElementById('err-farmer').classList.add('hidden');
+        }
+
+        function resetFarmerForm() {
+            document.getElementById('farmer-form').reset();
+            document.getElementById('farmer-edit-id').value = '';
+            document.getElementById('farmer-form-title').textContent = '新規農家の登録';
+            document.getElementById('btn-submit-farmer').textContent = '農家を登録する';
+            document.getElementById('btn-cancel-farmer-edit').classList.add('hidden');
+            document.getElementById('err-farmer').classList.add('hidden');
+        }
+
+        function handleSaveFarmer(event) {
+            event.preventDefault();
+            const errEl = document.getElementById('err-farmer');
+            errEl.classList.add('hidden');
+
+            const editId = document.getElementById('farmer-edit-id').value;
+            const name = document.getElementById('farmer-name').value.trim();
+            const contact = document.getElementById('farmer-contact').value.trim();
+            const phone = document.getElementById('farmer-phone').value.trim();
+            const address = document.getElementById('farmer-address').value.trim();
+            const email = document.getElementById('farmer-email').value.trim();
+
+            if (!name || !contact || !phone || !address || !email) {
+                errEl.textContent = 'すべての項目を入力してください。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+            if (!isValidEmail(email)) {
+                errEl.textContent = 'メールアドレスの形式が正しくありません。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            if (editId) {
+                const target = state.farmers.find(f => f.id === editId);
+                if (target) {
+                    Object.assign(target, { name, contact, phone, address, email });
+                    showToast(`「${name}」の情報を更新しました`);
+                }
+            } else {
+                state.farmers.push({
+                    id: 'f_' + Date.now(),
+                    name, contact, phone, address, email
+                });
+                showToast(`「${name}」を新規登録しました`);
+            }
+
+            resetFarmerForm();
+            refreshAllViews();
+        }
+
+        // ---------------------------------------------------------------------
+        // 8. 画面5: 共同受注・出荷管理（自動・手動割り当て＆ステータス更新）
+        // ---------------------------------------------------------------------
+        function getStatusBadgeClass(status) {
+            if (status === '未対応') return 'bg-red-100 text-red-800 border-red-300';
+            if (status === '出荷準備中') return 'bg-amber-100 text-amber-800 border-amber-300';
+            return 'bg-green-100 text-green-800 border-green-300';
+        }
+
+        function renderAdminOrdersView() {
+            const listEl = document.getElementById('admin-orders-list');
+            listEl.innerHTML = state.orders.map(ord => {
+                const isSelected = state.selectedOrderId === ord.id;
+                return `
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border-2 ${isSelected ? 'border-forest-600 ring-2 ring-forest-200' : 'border-earth-200'} transition">
+                        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-gray-500 bg-gray-100 px-2.5 py-1 rounded">${ord.id}</span>
+                                <span class="text-xs font-bold px-3 py-1 rounded-full border ${getStatusBadgeClass(ord.status)}">${ord.status}</span>
+                            </div>
+                            <span class="text-sm font-bold text-gray-600">納期: ${ord.deliveryDate}</span>
+                        </div>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500 font-bold">${ord.shopName}</p>
+                                <p class="text-xl font-bold text-gray-900 mt-0.5">${ord.crop} <span class="text-forest-700 text-2xl">${ord.qtyKg} kg</span></p>
+                                ${ord.note ? `<p class="text-xs text-gray-500 mt-1">備考: ${ord.note}</p>` : ''}
+                            </div>
+                            <button type="button" onclick="selectOrderForAllocation('${ord.id}')"
+                                class="px-5 py-3 bg-forest-600 hover:bg-forest-700 text-white font-bold rounded-xl shadow text-sm md:text-base whitespace-nowrap">
+                                割り当て・出荷管理 →
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            if (state.selectedOrderId) {
+                renderAllocationPanel(state.selectedOrderId);
+            }
+        }
+
+        function selectOrderForAllocation(orderId) {
+            state.selectedOrderId = orderId;
+            renderAdminOrdersView();
+        }
+
+        function renderAllocationPanel(orderId) {
+            const ord = state.orders.find(o => o.id === orderId);
+            const panel = document.getElementById('allocation-content');
+            if (!ord) return;
+
+            // 該当品目の農家別在庫を取得
+            const matchingStocks = state.inventories.filter(i => i.crop === ord.crop);
+            // 農家ごとに合算
+            const farmerStockMap = {};
+            matchingStocks.forEach(s => {
+                if (!farmerStockMap[s.farmerId]) farmerStockMap[s.farmerId] = 0;
+                farmerStockMap[s.farmerId] += s.unifiedKg;
+            });
+
+            // 自動割り当て案の計算（既存割り当てがなければ自動計算）
+            let allocations = ord.allocations && ord.allocations.length > 0 ? ord.allocations : [];
+            if (allocations.length === 0) {
+                let remaining = ord.qtyKg;
+                Object.keys(farmerStockMap).forEach(fId => {
+                    if (remaining <= 0) return;
+                    const f = state.farmers.find(item => item.id === fId);
+                    const avail = farmerStockMap[fId];
+                    const take = Math.min(avail, remaining);
+                    if (take > 0) {
+                        allocations.push({
+                            farmerId: fId,
+                            farmerName: f ? f.name : '農家',
+                            allocatedKg: take
+                        });
+                        remaining -= take;
+                    }
+                });
+            }
+
+            const totalAllocated = allocations.reduce((sum, a) => sum + Number(a.allocatedKg), 0);
+            const isShortage = totalAllocated < ord.qtyKg;
+
+            panel.className = 'space-y-5 text-left';
+            panel.innerHTML = `
+                <div class="p-4 rounded-xl bg-earth-50 border border-earth-200">
+                    <p class="text-xs font-bold text-gray-500">${ord.id} / 納品先</p>
+                    <p class="font-bold text-lg text-gray-900">${ord.shopName}</p>
+                    <p class="text-base font-bold text-forest-800 mt-1">注文内容: ${ord.crop} ${ord.qtyKg}kg（納期: ${ord.deliveryDate}）</p>
+                </div>
+
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <p class="font-bold text-gray-800">農家別 出荷割り当て数量（調整可能）</p>
+                        <button type="button" onclick="autoRecalculateAllocation('${ord.id}')" class="text-xs font-bold text-forest-700 underline">在庫から自動再計算</button>
+                    </div>
+                    ${Object.keys(farmerStockMap).length === 0 ? `
+                        <div class="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-bold">
+                            現在「${ord.crop}」の登録在庫がありません。在庫の統合入力画面から登録してください。
+                        </div>
+                    ` : `
+                        <div class="space-y-2.5">
+                            ${Object.keys(farmerStockMap).map(fId => {
+                                const f = state.farmers.find(item => item.id === fId);
+                                const existing = allocations.find(a => a.farmerId === fId);
+                                const val = existing ? existing.allocatedKg : 0;
+                                return `
+                                    <div class="p-3 border border-gray-200 rounded-xl bg-white flex items-center justify-between gap-2">
+                                        <div>
+                                            <p class="font-bold text-gray-800 text-sm">${f ? f.name : '農家'}</p>
+                                            <p class="text-xs text-gray-500">登録在庫: ${farmerStockMap[fId].toFixed(1)} kg</p>
+                                        </div>
+                                        <div class="flex items-center gap-1.5">
+                                            <input type="number" min="0" max="${farmerStockMap[fId]}" step="0.5"
+                                                data-farmer-id="${fId}" data-farmer-name="${f ? f.name : ''}"
+                                                value="${val}"
+                                                class="alloc-input w-24 px-3 py-2 text-right font-bold border-2 border-gray-300 rounded-lg focus:border-forest-600 focus:outline-none">
+                                            <span class="text-sm font-bold">kg</span>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+
+                <div class="p-3.5 rounded-xl ${isShortage ? 'bg-amber-50 border border-amber-300 text-amber-900' : 'bg-forest-50 border border-forest-300 text-forest-900'} text-sm font-bold flex justify-between">
+                    <span>割り当て合計: ${totalAllocated.toFixed(1)} kg / ${ord.qtyKg} kg</span>
+                    <span>${isShortage ? '⚠️ 在庫不足あり' : '✓ 必要量充足'}</span>
+                </div>
+
+                <!-- 出荷ステータス更新 -->
+                <div>
+                    <label class="block font-bold text-gray-800 mb-1.5">出荷ステータスを更新</label>
+                    <select id="order-status-select" class="w-full px-4 py-3 font-bold border-2 border-gray-300 rounded-xl bg-white focus:border-forest-600 focus:outline-none">
+                        <option value="未対応" ${ord.status === '未対応' ? 'selected' : ''}>未対応</option>
+                        <option value="出荷準備中" ${ord.status === '出荷準備中' ? 'selected' : ''}>出荷準備中（農家へ出荷指示済）</option>
+                        <option value="出荷済み" ${ord.status === '出荷済み' ? 'selected' : ''}>出荷済み（配送完了）</option>
+                    </select>
+                </div>
+
+                <button type="button" onclick="saveOrderAllocationAndStatus('${ord.id}')" class="w-full py-4 bg-forest-600 hover:bg-forest-700 text-white font-bold text-lg rounded-xl shadow transition">
+                    割り当てと出荷状況を保存する
+                </button>
+            `;
+        }
+
+        function autoRecalculateAllocation(orderId) {
+            const ord = state.orders.find(o => o.id === orderId);
+            if (ord) {
+                ord.allocations = [];
+                renderAllocationPanel(orderId);
+                showToast('登録在庫をもとに自動再計算しました');
+            }
+        }
+
+        function saveOrderAllocationAndStatus(orderId) {
+            const ord = state.orders.find(o => o.id === orderId);
+            if (!ord) return;
+
+            const inputs = document.querySelectorAll('.alloc-input');
+            const newAllocations = [];
+            inputs.forEach(inp => {
+                const kg = parseFloat(inp.value) || 0;
+                if (kg > 0) {
+                    newAllocations.push({
+                        farmerId: inp.dataset.farmerId,
+                        farmerName: inp.dataset.farmerName,
+                        allocatedKg: kg
+                    });
+                }
+            });
+
+            const newStatus = document.getElementById('order-status-select').value;
+            ord.allocations = newAllocations;
+            ord.status = newStatus;
+
+            refreshAllViews();
+            showToast(`注文 ${ord.id} の出荷指示・ステータスを「${newStatus}」に更新しました`);
+        }
+
+        // ---------------------------------------------------------------------
+        // 9. 画面6: 利用者（飲食店・小売店）向け注文・注文状況確認
+        // ---------------------------------------------------------------------
+        function renderBuyerPortal() {
+            const aggregated = getAggregatedInventory();
+            const select = document.getElementById('order-crop-select');
+
+            // 納期デフォルト（2日後）
+            const dateInput = document.getElementById('order-delivery-date');
+            if (!dateInput.value) {
+                const d = new Date();
+                d.setDate(d.getDate() + 2);
+                dateInput.value = d.toISOString().split('T')[0];
+            }
+
+            if (aggregated.length === 0) {
+                select.innerHTML = `<option value="">現在注文可能な在庫がありません</option>`;
+            } else {
+                const prev = select.value;
+                select.innerHTML = aggregated.map(item => {
+                    const price = CROP_PRICES[item.crop] || 250;
+                    return `<option value="${item.crop}" data-stock="${item.totalKg}">${item.crop}（参考価格 ¥${price}/kg）</option>`;
+                }).join('');
+                if (prev && aggregated.some(a => a.crop === prev)) select.value = prev;
+            }
+            updateOrderAvailableInfo();
+
+            // 注文履歴描画（利用者の場合は自分の注文、管理者の場合は全注文表示）
+            const user = state.currentUser;
+            const visibleOrders = user && user.role === 'buyer'
+                ? state.orders.filter(o => o.buyerLoginId === user.loginId)
+                : state.orders;
+
+            const listEl = document.getElementById('buyer-orders-list');
+            if (visibleOrders.length === 0) {
+                listEl.innerHTML = `<div class="p-6 text-center text-gray-500 border rounded-xl">まだ注文履歴がありません。左のフォームから注文できます。</div>`;
+                return;
+            }
+
+            listEl.innerHTML = visibleOrders.map(ord => `
+                <div class="p-5 rounded-2xl border border-earth-200 bg-earth-50/40 space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span class="text-xs font-bold text-gray-500">${ord.id} ｜ 希望納期: ${ord.deliveryDate}</span>
+                        <span class="text-xs font-bold px-3 py-1 rounded-full border ${getStatusBadgeClass(ord.status)}">${ord.status}</span>
+                    </div>
+                    <div class="flex items-baseline justify-between">
+                        <p class="text-xl font-bold text-gray-900">${ord.crop} <span class="text-earth-800">${ord.qtyKg} kg</span></p>
+                        <p class="text-sm text-gray-600">発注元: ${ord.shopName}</p>
+                    </div>
+                    ${ord.allocations && ord.allocations.length > 0 ? `
+                        <div class="pt-2 border-t border-earth-200 text-xs text-forest-800">
+                            <strong>出荷担当農家:</strong> ${ord.allocations.map(a => `${a.farmerName} (${a.allocatedKg}kg)`).join(' / ')}
+                        </div>
+                    ` : `<p class="text-xs text-gray-500">※農業連合にて出荷農家の割り当て調整中です</p>`}
+                </div>
+            `).join('');
+        }
+
+        function updateOrderAvailableInfo() {
+            const select = document.getElementById('order-crop-select');
+            const hint = document.getElementById('order-stock-hint');
+            const selectedOption = select.options[select.selectedIndex];
+            if (selectedOption && selectedOption.dataset.stock) {
+                hint.textContent = `現在の連合合計在庫： ${parseFloat(selectedOption.dataset.stock).toFixed(1)} kg 出荷可能`;
+            } else {
+                hint.textContent = '';
+            }
+        }
+
+        function handlePlaceOrder(event) {
+            event.preventDefault();
+            const errEl = document.getElementById('err-buyer-order');
+            errEl.classList.add('hidden');
+
+            const crop = document.getElementById('order-crop-select').value;
+            const qtyKg = parseFloat(document.getElementById('order-qty').value);
+            const deliveryDate = document.getElementById('order-delivery-date').value;
+            const note = document.getElementById('order-note').value.trim();
+
+            if (!crop || isNaN(qtyKg) || qtyKg <= 0 || !deliveryDate) {
+                errEl.textContent = '品目・注文数量・希望納期を正しく入力してください。';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            const user = state.currentUser;
+            const newOrder = {
+                id: 'ORD-2026-' + String(state.orders.length + 1).padStart(3, '0'),
+                buyerLoginId: user.loginId,
+                shopName: user.shopName || user.org || user.name,
+                crop,
+                qtyKg,
+                deliveryDate,
+                note,
+                status: '未対応',
+                allocations: []
+            };
+
+            state.orders.unshift(newOrder);
+            document.getElementById('order-note').value = '';
+            refreshAllViews();
+            showToast(`「${crop} ${qtyKg}kg」のご注文を受け付けました！`);
+        }
+
+        // 初期化
+        window.addEventListener('DOMContentLoaded', () => {
+            updateUnitConversionPreview();
+        });
+    </script>
+</body>
+</html>
